@@ -1,0 +1,5 @@
+.vagrant
+.env
+*.vdi
+*.idea
+ansible/main.retry

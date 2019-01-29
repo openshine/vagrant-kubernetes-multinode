@@ -1,0 +1,27 @@
+{
+  "clusters": [
+    {
+      "nodes": [
+        {% for host in groups['k8s-workers'] %}
+        {
+          "node": {
+            "hostnames": {
+              "manage": [
+                "{{ host }}.vagrant.vm"
+              ],
+              "storage": [
+                "{{ hostvars[host]['ansible_enp0s8']['ipv4']['address'] }}"
+              ]
+            },
+            "zone": 1
+          },
+          "devices": [
+            "/dev/sdb"
+          ]
+        }
+        {% if not loop.last %},{% endif %}
+        {% endfor %}
+     ]
+   }
+ ]
+}

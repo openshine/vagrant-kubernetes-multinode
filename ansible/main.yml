@@ -1,0 +1,79 @@
+---
+- hosts: k8s-masters, k8s-workers
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Remove swapfile from /etc/fstab
+      mount:
+        name: swap
+        fstype: swap
+        state: absent
+    - name: Disable swap
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: install requirements
+      package:
+        name: "{{item}}"
+        state: present
+      with_items:
+       - vim
+       - git
+       - python2
+
+- hosts: k8s-masters, k8s-workers
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: wait until all kubernets nodes are ready
+      command: kubectl get nodes --no-headers=true
+      register: cmd_res
+      retries: 10
+      delay: 15
+      until: cmd_res.stdout_lines | reject('search',' Ready') | list | count == 0
+      when: kubernetes_role == 'master'
+  roles:
+    - geerlingguy.docker
+    - geerlingguy.kubernetes
+
+- hosts: k8s-masters, k8s-workers
+  gather_facts: false
+  become: yes
+  tasks:
+    - name: install requirements
+      package:
+        name: "{{item}}"
+        state: present
+      with_items:
+       - glusterfs-client
+       - glusterfs-fuse
+    - name: enable required kernel modules
+      modprobe:
+        name: "{{item}}"
+        state: present
+      with_items:
+       - dm_snapshot
+       - dm_mirror
+       - dm_thin_pool
+    - name: label kuberbetes nodes
+      shell: |
+        kubectl get nodes -o=custom-columns=NAME:.metadata.name --no-headers=true | grep worker | xargs -i kubectl label node {} storagenode=glusterfs
+      when: kubernetes_role == 'master'
+    - name: clone git kubernets gluster deployment
+      git:
+        repo: https://github.com/gluster/gluster-kubernetes.git
+        dest: /opt/gluster-kubernetes
+      when: kubernetes_role == 'master'
+    - name: Create topology file
+      template:
+        src: templates/topology.json.j2
+        dest: /opt/gluster-kubernetes/deploy/topology.json
+        owner: root
+        group: root
+        mode: 0644
+      when: kubernetes_role == 'master'
+    - name: Deploying Heketi + GlusterFS (IT TAKES SOME TIME, be pacient, please)
+      command: ./gk-deploy -g -w 1200 -y
+      args:
+        chdir: /opt/gluster-kubernetes/deploy/
+      when: kubernetes_role == 'master'
