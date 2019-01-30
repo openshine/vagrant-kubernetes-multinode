@@ -97,3 +97,13 @@
         kubectl patch storageclass glusterfs-storage -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
       when: kubernetes_role == 'master'
 
+- hosts: k8s-masters
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: Apply helm ServiceAccount
+      shell: kubectl apply -f /vagrant/k8s/helm/rbac-config.yaml
+    - name: Init helm server
+      shell: helm init --service-account tiller
+  roles:
+    - andrewrothstein.kubernetes-helm
