@@ -44,10 +44,9 @@ $ vagrant destroy -f
 ## Features
 
 * Kubernetes (1 master, 3+ nodes)
-
 * GlusterFS + Heketi
+* Helm tiller with rbac
 
 ## License
 
 This project is licensed under the Apache 2 License - see the [LICENSE](LICENSE) file for details
-
