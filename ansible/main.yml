@@ -55,9 +55,6 @@
        - dm_snapshot
        - dm_mirror
        - dm_thin_pool
-    - name: label kuberbetes nodes
-      shell: |
-        kubectl get nodes -o=custom-columns=NAME:.metadata.name --no-headers=true | grep worker | xargs -i kubectl label node {} storagenode=glusterfs
       when: kubernetes_role == 'master'
     - name: clone git kubernets gluster deployment
       git:
@@ -77,3 +74,26 @@
       args:
         chdir: /opt/gluster-kubernetes/deploy/
       when: kubernetes_role == 'master'
+    - name: Get heketi server ip address
+      shell: |
+        kubectl get pod $(kubectl get pods --selector=heketi -o=custom-columns=NAME:.metadata.name --no-headers=true) --template=\{\{.status.podIP\}\}
+      register: heketi_server
+      when: kubernetes_role == 'master'
+    - name: Create glusterstorage class file
+      template:
+        src: templates/storageclass.yml.j2
+        dest: /opt/gluster-kubernetes/deploy/storageclass.yml
+        owner: root
+        group: root
+        mode: 0644
+      vars:
+        heketi_server_ip_address: "{{ heketi_server.stdout }}"
+      when: kubernetes_role == 'master'
+    - name: Add storageclass to the cluster
+      shell: kubectl apply -f /opt/gluster-kubernetes/deploy/storageclass.yml
+      when: kubernetes_role == 'master'
+    - name: Set glusterfs as default StorageClass
+      shell: |
+        kubectl patch storageclass glusterfs-storage -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      when: kubernetes_role == 'master'
+
